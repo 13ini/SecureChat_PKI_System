@@ -1,0 +1,43 @@
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Keys and certificates
+user_keys/
+ca_keys/
+*.pem
+*.key
+*.crt
+
+# Uploaded files
+shared_files/
+uploads/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Logs
+*.log
+
+# Configuration
+config.json
+!config.template.json
+
+# OS files
+.DS_Store
+Thumbs.db
