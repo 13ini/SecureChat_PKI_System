@@ -1,79 +1,3 @@
-"""
-==============================================================
-SecureChat – PKI-Based Secure Chat & Document-Signing System
-==============================================================
-ST6051CEM Practical Cryptography  |  Softwarica College
-Author : [Your Name]
-Date   : January 2026
-
-Features implemented
---------------------
-1.  Local Certificate Authority (CA)
-      • CA key-pair + self-signed CA certificate generated once
-        and persisted to disk (ca_private.pem / ca_cert.pem).
-      • Every user certificate is signed by the CA.
-      • CA public certificate is the trust anchor used by
-        validate_certificate().
-
-2.  Certificate Validation  (validate_certificate)
-      • Verifies the certificate's signature against the CA.
-      • Checks not_valid_before / not_valid_after.
-      • Checks the serial number against the CRL table.
-      • Called at login, before signing, and before verifying.
-
-3.  Certificate Revocation  (CRL table + admin endpoint)
-      • revoked_certificates table stores serial numbers.
-      • Admin can revoke any user's certificate.
-      • Revoked users cannot log in, sign, or have their
-        signatures accepted.
-
-4.  Authentication Hardening
-      • 3-strike account lockout with 10-minute cooldown.
-      • Failed-attempt counter + locked_at timestamp persisted
-        in login_attempts table.
-      • Live countdown timer shown in the browser.
-
-5.  Secure Communication Model
-      • Transport layer : application is designed to run behind
-        a TLS-terminating reverse proxy (nginx / gunicorn with
-        an SSL cert).  A startup note reminds the operator.
-      • Message layer   : every message is RSA-OAEP encrypted
-        (confidentiality) and RSA-PSS signed (integrity +
-        non-repudiation), independent of TLS.
-
-6.  Attack Resistance
-      • MITM  – signature verification fails on any tampered
-        ciphertext.
-      • Certificate spoofing – validate_certificate() rejects
-        any cert not signed by the trusted CA.
-      • Unauthorised signing – sender's certificate is validated
-        before the signature is created; revoked users are blocked.
-
-7.  Cryptographic Best Practices
-      • RSA-2048, RSA-PSS + SHA-256 for all signatures.
-      • RSA-OAEP + SHA-256 for encryption.
-      • Hybrid-encryption scaffold (AES-256-GCM + RSA-OAEP)
-        included for messages longer than the RSA block size.
-
-8.  Testing
-      • Run:  python test_pki.py
-      • Covers CA issuance, validation, revocation, multi-user
-        sign/verify, forged-cert rejection, MITM detection.
-
-Database
---------
-  SQLite  : secure_chat.db
-  Tables  : users | messages | admin_users | login_attempts
-            | revoked_certificates
-
-Startup
--------
-  pip install -r requirements.txt
-  python secure_chat_system.py
-  -> http://localhost:5000
-  Default admin: admin / admin123
-"""
-
 # ------
 # IMPORTS
 # ------
@@ -1421,6 +1345,12 @@ def decrypt_message_route():
         if cert_ok:
             sig_ok = verify_signature(plain, sig, sender_pub)
         
+        # Mark message as read
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.execute("UPDATE messages SET is_read = 1 WHERE message_id = ?", (message_id,))
+        conn.commit()
+        conn.close()
+        
         return jsonify({
             "success": True,
             "decrypted_message": plain,
@@ -1622,6 +1552,12 @@ def download_file(file_id):
         
         # Decrypt
         decrypted_data = decrypt_file(encrypted_data, enc_key, priv)
+        
+        # Mark as downloaded
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.execute("UPDATE shared_files SET is_downloaded = 1 WHERE file_id = ?", (file_id,))
+        conn.commit()
+        conn.close()
         
         # Send as download
         from io import BytesIO
